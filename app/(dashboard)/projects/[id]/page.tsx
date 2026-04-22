@@ -33,11 +33,12 @@ export default async function ProjectDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; doc?: string }>
 }) {
   const { id } = await params
   const sp = await searchParams
   const tab = sp.tab || "overview"
+  const activeDocId = sp.doc
   const { supabase, studioId } = await getCurrentContext()
 
   const { data: project } = await supabase
@@ -49,7 +50,7 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound()
 
-  const [tasksRes, specsRes, entriesRes, clientRes] = await Promise.all([
+  const [tasksRes, specsRes, entriesRes, clientRes, documentsRes] = await Promise.all([
     supabase
       .from("tasks")
       .select("*")
@@ -72,6 +73,11 @@ export default async function ProjectDetailPage({
           .eq("id", project.client_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    supabase
+      .from("documents")
+      .select("id,title,content_json,updated_at")
+      .eq("project_id", id)
+      .order("updated_at", { ascending: false }),
   ])
 
   const tasks = tasksRes.data || []
@@ -80,6 +86,12 @@ export default async function ProjectDetailPage({
   const client = clientRes.data as
     | { id: string; name: string; email?: string; phone?: string }
     | null
+  const documents = (documentsRes.data || []) as Array<{
+    id: string
+    title: string
+    content_json: unknown
+    updated_at: string | null
+  }>
 
   const totalTasks = tasks.length
   const doneTasks = tasks.filter((t: { status: string }) => t.status === "done").length
@@ -170,7 +182,13 @@ export default async function ProjectDetailPage({
         {tab === "tasks" && <TasksTab projectId={id} tasks={tasks} />}
         {tab === "furniture" && <SpecsTab projectId={id} specs={specs} />}
         {tab === "time" && <TimeTab projectId={id} entries={entries} />}
-        {tab === "documents" && <DocumentsTab />}
+        {tab === "documents" && (
+          <DocumentsTab
+            projectId={id}
+            documents={documents}
+            activeDocId={activeDocId}
+          />
+        )}
       </div>
     </div>
   )

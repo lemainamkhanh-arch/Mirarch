@@ -145,3 +145,67 @@ export async function deleteTimeEntryAction(
   await supabase.from("time_entries").delete().eq("id", entryId)
   revalidatePath(`/projects/${projectId}`)
 }
+
+// Documents (BlockNote)
+export async function createDocumentAction(
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase, user, studioId } = await getCurrentContext()
+  if (!user || !studioId) redirect("/login")
+  const title = String(formData.get("title") || "Untitled").trim() || "Untitled"
+  const { data, error } = await supabase
+    .from("documents")
+    .insert({
+      studio_id: studioId,
+      project_id: projectId,
+      title,
+      content_json: [],
+      created_by: user.id,
+    })
+    .select("id")
+    .single()
+  if (error) throw new Error(error.message)
+  revalidatePath(`/projects/${projectId}`)
+  redirect(`/projects/${projectId}?tab=documents&doc=${data.id}`)
+}
+
+export async function updateDocumentContentAction(
+  docId: string,
+  projectId: string,
+  contentJson: unknown,
+) {
+  const { supabase } = await getCurrentContext()
+  const { error } = await supabase
+    .from("documents")
+    .update({ content_json: contentJson, updated_at: new Date().toISOString() })
+    .eq("id", docId)
+  if (error) throw new Error(error.message)
+  revalidatePath(`/projects/${projectId}`)
+  return { ok: true }
+}
+
+export async function renameDocumentAction(
+  docId: string,
+  projectId: string,
+  title: string,
+) {
+  const { supabase } = await getCurrentContext()
+  const { error } = await supabase
+    .from("documents")
+    .update({ title: title.trim() || "Untitled" })
+    .eq("id", docId)
+  if (error) throw new Error(error.message)
+  revalidatePath(`/projects/${projectId}`)
+  return { ok: true }
+}
+
+export async function deleteDocumentAction(
+  docId: string,
+  projectId: string,
+) {
+  const { supabase } = await getCurrentContext()
+  await supabase.from("documents").delete().eq("id", docId)
+  revalidatePath(`/projects/${projectId}`)
+  redirect(`/projects/${projectId}?tab=documents`)
+}

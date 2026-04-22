@@ -4,6 +4,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import { Briefcase, Clock, DollarSign, AlertTriangle } from 'lucide-react'
 import { METRICS, PIE_DATA, PIE_COLORS } from '@/lib/mirarch/mock-data'
 
+const DOT_STYLES: React.CSSProperties[] = PIE_COLORS.map((c) => ({ backgroundColor: c }))
+
 export default function DashboardPage() {
   return (
     <div className="p-8">
@@ -39,7 +41,7 @@ export default function DashboardPage() {
             {PIE_DATA.map((d, i) => (
               <li key={d.name} className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style= background: PIE_COLORS[i]  />
+                  <span className="w-2.5 h-2.5 rounded-full" style={DOT_STYLES[i]} />
                   <span className="text-gray-700">{d.name}</span>
                 </div>
                 <span className="text-gray-900 font-medium">{d.value}</span>

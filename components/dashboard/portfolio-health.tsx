@@ -30,15 +30,18 @@ export function PortfolioHealth({ data, total }: { data: { name: string; value: 
           </div>
         </div>
         <ul className="space-y-3">
-          {data.map((d, i) => (
-            <li key={d.name} className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full" style= backgroundColor: COLORS[i % COLORS.length]  />
-                <span className="text-gray-700">{d.name}</span>
-              </div>
-              <span className="text-gray-900 font-medium">{d.value}</span>
-            </li>
-          ))}
+          {data.map((d, i) => {
+            const dotStyle = { backgroundColor: COLORS[i % COLORS.length] }
+            return (
+              <li key={d.name} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={dotStyle} />
+                  <span className="text-gray-700">{d.name}</span>
+                </div>
+                <span className="text-gray-900 font-medium">{d.value}</span>
+              </li>
+            )
+          })}
         </ul>
       </div>
     </div>

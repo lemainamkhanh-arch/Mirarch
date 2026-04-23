@@ -94,3 +94,74 @@ export async function updateEstimateVatAction(id: string, vat_pct: number, conti
     .eq('studio_id', studioId)
   revalidatePath(`/estimations/${id}`)
 }
+
+/**
+ * Pull all specifications from a project into an estimate as line items.
+ * Groups specs by room → creates a section per room, items per spec.
+ */
+export async function pullSpecsIntoEstimateAction(formData: FormData) {
+  const { supabase, studioId } = await getCurrentContext()
+  const estimate_id = formData.get('estimate_id') as string
+  const project_id = formData.get('project_id') as string
+  if (!estimate_id || !project_id) return
+
+  // Verify estimate belongs to studio
+  const { data: est } = await supabase
+    .from('estimates')
+    .select('id')
+    .eq('id', estimate_id)
+    .eq('studio_id', studioId)
+    .maybeSingle()
+  if (!est) return
+
+  // Fetch specs
+  const { data: specs } = await supabase
+    .from('specifications')
+    .select('name, room, quantity, unit_price, markup_pct, unit')
+    .eq('project_id', project_id)
+    .not('status', 'eq', 'installed')
+    .order('room', { nullsFirst: false })
+    .order('created_at')
+
+  if (!specs || specs.length === 0) return
+
+  // Group by room
+  const roomMap = new Map<string, typeof specs>()
+  for (const s of specs) {
+    const room = s.room ?? 'Chung'
+    if (!roomMap.has(room)) roomMap.set(room, [])
+    roomMap.get(room)!.push(s)
+  }
+
+  // Get current section count for sort_order
+  const { count: sectionCount } = await supabase
+    .from('estimate_sections')
+    .select('*', { count: 'exact', head: true })
+    .eq('estimate_id', estimate_id)
+
+  let sectionIdx = sectionCount ?? 0
+  for (const [room, roomSpecs] of roomMap.entries()) {
+    // Create section
+    const { data: section } = await supabase
+      .from('estimate_sections')
+      .insert({ estimate_id, name: room, sort_order: sectionIdx++ })
+      .select('id')
+      .single()
+    if (!section) continue
+
+    // Create items
+    const itemInserts = roomSpecs.map((s, i) => ({
+      estimate_id,
+      section_id: section.id,
+      description: s.name,
+      unit: s.unit ?? 'cái',
+      quantity: s.quantity ?? 1,
+      unit_price: s.unit_price ?? 0,
+      markup_pct: s.markup_pct ?? 0,
+      sort_order: i,
+    }))
+    await supabase.from('estimate_items').insert(itemInserts)
+  }
+
+  revalidatePath(`/estimations/${estimate_id}`)
+}

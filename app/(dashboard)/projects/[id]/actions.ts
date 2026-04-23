@@ -35,6 +35,26 @@ export async function deleteProjectAction(projectId: string) {
   redirect("/projects")
 }
 
+export async function uploadCoverAction(projectId: string, formData: FormData) {
+  const { supabase, studioId } = await getCurrentContext()
+  const file = formData.get("cover") as File | null
+  if (!file || file.size === 0) return
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
+  const path = `${studioId}/covers/${projectId}-${Date.now()}.${ext}`
+  const bytes = await file.arrayBuffer()
+  const buffer = new Uint8Array(bytes)
+
+  const { error: uploadErr } = await supabase.storage
+    .from("assets")
+    .upload(path, buffer, { contentType: file.type, upsert: true })
+  if (uploadErr) throw new Error(uploadErr.message)
+
+  const coverUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/assets/${path}`
+  await supabase.from("projects").update({ cover_url: coverUrl }).eq("id", projectId)
+  revalidatePath(`/projects/${projectId}`)
+}
+
 export async function createTaskAction(projectId: string, formData: FormData) {
   const { supabase } = await getCurrentContext()
   const title = String(formData.get("title") || "").trim()
@@ -88,6 +108,8 @@ export async function createSpecAction(projectId: string, formData: FormData) {
   const room = String(formData.get("room") || "")
   const quantity = Number(formData.get("quantity") || 1)
   const unit_price = Number(formData.get("unit_price") || 0)
+  const lead_time_days_raw = formData.get("lead_time_days")
+  const install_date_raw = formData.get("install_date")
   await supabase.from("specifications").insert({
     project_id: projectId,
     name,
@@ -95,6 +117,8 @@ export async function createSpecAction(projectId: string, formData: FormData) {
     quantity,
     unit_price,
     status: "specified",
+    lead_time_days: lead_time_days_raw ? Number(lead_time_days_raw) : null,
+    install_date: install_date_raw ? String(install_date_raw) : null,
   })
   revalidatePath(`/projects/${projectId}`)
 }

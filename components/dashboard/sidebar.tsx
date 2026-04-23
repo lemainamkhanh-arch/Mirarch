@@ -8,6 +8,7 @@ import {
   Briefcase,
   Calendar,
   FileText,
+  Calculator,
   Sparkles,
   Clock,
   CheckSquare,
@@ -23,7 +24,8 @@ const NAV_TOOLS = [
   { href: '/dashboard', icon: LayoutDashboard, vi: 'Tổng quan', en: 'Dashboard' },
   { href: '/projects', icon: Briefcase, vi: 'Dự án', en: 'Projects' },
   { href: '/schedule', icon: Calendar, vi: 'Lịch trình', en: 'Schedule' },
-  { href: '/specifications', icon: FileText, vi: 'Bảng vật liệu', en: 'Specifications' },
+  { href: '/specifications', icon: FileText, vi: 'Bảng vật liệu', en: 'FF&E' },
+  { href: '/estimations', icon: Calculator, vi: 'Dự toán', en: 'Estimations' },
   { href: '/ai-studio', icon: Sparkles, vi: 'AI Studio', en: 'AI Studio' },
   { href: '/time-tracking', icon: Clock, vi: 'Theo dõi giờ', en: 'Time Tracking' },
   { href: '/todo', icon: CheckSquare, vi: 'Việc cần làm', en: 'To-Do' },
@@ -56,7 +58,6 @@ export function Sidebar({
     localStorage.setItem('mirarch_lang', next)
   }
 
-  // initials from studio name
   const initials = studioName
     .split(' ')
     .map((w) => w[0])
@@ -137,7 +138,6 @@ export function Sidebar({
       </nav>
 
       <div className="px-3 pb-3 space-y-2">
-        {/* Lang toggle */}
         <button
           onClick={toggleLang}
           className="w-full flex items-center justify-between px-3 py-2 rounded-sm border border-gray-100 text-xs text-gray-500 hover:bg-gray-50"
@@ -148,8 +148,6 @@ export function Sidebar({
           </span>
           <span className="font-semibold text-gray-900">{lang.toUpperCase()}</span>
         </button>
-
-        {/* Upgrade banner */}
         <div className="p-3 bg-gray-900 rounded-sm text-white">
           <p className="text-xs font-semibold">
             {lang === 'vi' ? 'Nâng cấp gói' : 'Upgrade plan'}

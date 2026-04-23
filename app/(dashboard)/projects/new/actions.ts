@@ -18,6 +18,7 @@ export async function createProjectAction(formData: FormData) {
   if (!memb?.studio_id) redirect('/onboarding')
 
   const budgetRaw = formData.get('budget')
+  const currency = String(formData.get('currency') ?? 'VND')
   const payload = {
     studio_id: memb.studio_id,
     code: String(formData.get('code') ?? '').trim(),
@@ -28,10 +29,14 @@ export async function createProjectAction(formData: FormData) {
     budget: budgetRaw ? Number(budgetRaw) : null,
     start_date: (formData.get('start_date') as string) || null,
     end_date: (formData.get('end_date') as string) || null,
-    currency: 'USD',
+    currency,
   }
 
-  const { data, error } = await supabase.from('projects').insert(payload).select('id').single()
+  const { data, error } = await supabase
+    .from('projects')
+    .insert(payload)
+    .select('id')
+    .single()
   if (error) throw new Error(error.message)
   redirect(`/projects/${data.id}`)
 }

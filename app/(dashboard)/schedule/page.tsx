@@ -36,11 +36,10 @@ export default async function SchedulePage() {
   const { data: tasks } = await supabase
     .from('tasks')
     .select('id, project_id, title, due_date, status')
-    .in('project_id', (projects ?? []).map((p) => p.id))
+    .in('project_id', (projects ?? []).map((p: any) => p.id))
     .not('due_date', 'is', null)
     .in('status', ['not_started', 'in_progress', 'blocked'])
 
-  // Timeline: 3 months ago → 15 months ahead (18 months total)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const minDate = new Date(today)
@@ -56,13 +55,14 @@ export default async function SchedulePage() {
 
   const todayPct = pct(today.toISOString().slice(0, 10))
 
-  // Tasks keyed by project
-  const tasksByProject = new Map<string, typeof tasks>()
-  for (const t of tasks ?? []) {
-    if (!tasksByProject.has(t.project_id as string))
-      tasksByProject.set(t.project_id as string, [])
-    tasksByProject.get(t.project_id as string)!.push(t)
+  const tasksByProject = new Map<string, any[]>()
+  for (const t of (tasks ?? []) as any[]) {
+    const pid = t.project_id as string
+    if (!tasksByProject.has(pid)) tasksByProject.set(pid, [])
+    tasksByProject.get(pid)!.push(t)
   }
+
+  const todayLineStyle = { left: `calc(14rem + ${todayPct}% * (100% - 14rem) / 100)` } as const
 
   return (
     <div className="p-8">
@@ -82,8 +82,7 @@ export default async function SchedulePage() {
       </div>
 
       <div className="bg-white border border-gray-100 rounded-sm p-6 overflow-x-auto">
-        <div style= minWidth: '900px' >
-          {/* Month headers */}
+        <div className="min-w-[900px]">
           <div className="flex text-[11px] text-gray-400 uppercase tracking-wider mb-1 ml-56 relative">
             {Array.from({ length: monthsCount }).map((_, i) => {
               const d = new Date(minDate)
@@ -94,9 +93,7 @@ export default async function SchedulePage() {
               return (
                 <div
                   key={i}
-                  className={`flex-1 ${
-                    isCurrentMonth ? 'font-bold text-gray-900' : ''
-                  }`}
+                  className={`flex-1 ${isCurrentMonth ? 'font-bold text-gray-900' : ''}`}
                 >
                   {d.toLocaleString('vi-VN', { month: 'short', year: '2-digit' })}
                 </div>
@@ -104,22 +101,21 @@ export default async function SchedulePage() {
             })}
           </div>
 
-          {/* Rows */}
           <div className="space-y-1.5 relative">
-            {/* Today vertical line */}
             <div
               className="absolute top-0 bottom-0 w-px bg-red-400 z-10 pointer-events-none"
-              style={{ left: `calc(14rem + ${todayPct}% * (100% - 14rem) / 100)` }}
+              style={todayLineStyle}
             />
 
-            {projects?.map((p) => {
+            {(projects ?? []).map((p: any) => {
               const hasStart = !!p.start_date
               const hasEnd = !!p.end_date
               const hasBoth = hasStart && hasEnd
-              const startPct = hasStart ? pct(p.start_date!) : 0
-              const endPct = hasEnd ? pct(p.end_date!) : 0
+              const startPct = hasStart ? pct(p.start_date) : 0
+              const endPct = hasEnd ? pct(p.end_date) : 0
               const widthPct = Math.max(0.5, endPct - startPct)
               const projectTasks = tasksByProject.get(p.id) ?? []
+              const barStyle = { left: `${startPct}%`, width: `${widthPct}%` } as const
 
               return (
                 <div key={p.id}>
@@ -138,33 +134,26 @@ export default async function SchedulePage() {
                       {hasBoth ? (
                         <Link
                           href={`/projects/${p.id}`}
-                          className={`absolute inset-y-0 rounded-sm flex items-center px-2 text-[10px] text-white font-medium whitespace-nowrap overflow-hidden hover:brightness-90 ${
-                            STATUS_COLOR[p.status] ?? 'bg-gray-700'
-                          }`}
-                          style={{ left: `${startPct}%`, width: `${widthPct}%` }}
+                          className={`absolute inset-y-0 rounded-sm flex items-center px-2 text-[10px] text-white font-medium whitespace-nowrap overflow-hidden hover:brightness-90 ${STATUS_COLOR[p.status] ?? 'bg-gray-700'}`}
+                          style={barStyle}
                           title={`${p.start_date} → ${p.end_date}`}
                         >
-                          {widthPct > 6 ? STATUS_LABEL[p.status] ?? p.status : ''}
+                          {widthPct > 6 ? (STATUS_LABEL[p.status] ?? p.status) : ''}
                         </Link>
                       ) : (
-                        <span className="text-[11px] text-gray-300 px-2 leading-7">
-                          No dates
-                        </span>
+                        <span className="text-[11px] text-gray-300 px-2 leading-7">No dates</span>
                       )}
-                      {/* Task milestone dots */}
-                      {projectTasks.map((t) => {
+                      {projectTasks.map((t: any) => {
                         if (!t.due_date) return null
-                        const tp = pct(t.due_date as string)
-                        const isPast =
-                          new Date(t.due_date as string) < today
+                        const tp = pct(t.due_date)
+                        const isPast = new Date(t.due_date) < today
+                        const dotStyle = { left: `calc(${tp}% - 4px)` } as const
                         return (
                           <span
                             key={t.id}
                             title={`${t.title} — ${t.due_date}`}
-                            className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-white z-10 ${
-                              isPast ? 'bg-red-500' : 'bg-yellow-400'
-                            }`}
-                            style={{ left: `calc(${tp}% - 4px)` }}
+                            className={`absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full border-2 border-white z-10 ${isPast ? 'bg-red-500' : 'bg-yellow-400'}`}
+                            style={dotStyle}
                           />
                         )
                       })}
@@ -177,14 +166,11 @@ export default async function SchedulePage() {
             {(!projects || projects.length === 0) && (
               <p className="text-sm text-gray-400 text-center py-10">
                 No projects yet.{' '}
-                <Link href="/projects/new" className="underline">
-                  Create one.
-                </Link>
+                <Link href="/projects/new" className="underline">Create one.</Link>
               </p>
             )}
           </div>
 
-          {/* Legend */}
           <div className="flex items-center gap-4 mt-4 text-[11px] text-gray-500">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-yellow-400 border-2 border-white inline-block" />

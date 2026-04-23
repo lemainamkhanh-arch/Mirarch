@@ -1,5 +1,7 @@
 import { createClient } from './server'
 
+type StudioLite = { name: string; slug: string }
+
 export async function getCurrentContext() {
   const supabase = await createClient()
   const {
@@ -21,14 +23,21 @@ export async function getCurrentContext() {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  const studio = memb?.studios as { name: string; slug: string } | null
+  const rawStudios = (memb as any)?.studios as
+    | StudioLite
+    | StudioLite[]
+    | null
+    | undefined
+  const studio: StudioLite | null = Array.isArray(rawStudios)
+    ? (rawStudios[0] ?? null)
+    : (rawStudios ?? null)
 
   return {
     supabase,
     user,
-    studioId: (memb?.studio_id ?? null) as string | null,
+    studioId: ((memb as any)?.studio_id ?? null) as string | null,
     studioName: studio?.name ?? null,
     studioSlug: studio?.slug ?? null,
-    ownerName: user.user_metadata?.full_name ?? user.email?.split('@')[0] ?? null,
+    ownerName: (user.user_metadata as any)?.full_name ?? user.email?.split('@')[0] ?? null,
   }
 }

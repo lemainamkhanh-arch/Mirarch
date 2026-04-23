@@ -21,6 +21,8 @@ const STATUS_LABEL: Record<string, string> = {
   converted: 'Đã xuất HĐ',
 }
 
+type ProjectLite = { code: string; name: string }
+
 type EstimateRow = {
   id: string
   title: string
@@ -29,7 +31,7 @@ type EstimateRow = {
   version: number
   created_at: string
   project_id: string | null
-  projects: { code: string; name: string } | null
+  projects: ProjectLite | null
 }
 
 type ProjectRow = { id: string; code: string; name: string }
@@ -59,8 +61,20 @@ export default async function EstimationsPage({
       .order('name'),
   ])
 
-  const estimates = (estimatesRes.data ?? []) as EstimateRow[]
-  const projects = (projectsRes.data ?? []) as ProjectRow[]
+  const rawEstimates = (estimatesRes.data ?? []) as any[]
+  const estimates: EstimateRow[] = rawEstimates.map((r) => ({
+    id: r.id,
+    title: r.title,
+    status: r.status,
+    currency: r.currency,
+    version: r.version,
+    created_at: r.created_at,
+    project_id: r.project_id ?? null,
+    projects: Array.isArray(r.projects)
+      ? ((r.projects[0] as ProjectLite | undefined) ?? null)
+      : ((r.projects as ProjectLite | null) ?? null),
+  }))
+  const projects = ((projectsRes.data ?? []) as any[]) as ProjectRow[]
 
   return (
     <div className="p-8">

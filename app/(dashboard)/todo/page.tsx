@@ -6,18 +6,10 @@ import {
   deleteTaskGlobalAction,
   createTaskGlobalAction,
 } from "./actions"
+import { StatusSelect } from "./status-select"
 
 export const dynamic = "force-dynamic"
 
-const STATUS_COLOR: Record<string, string> = {
-  not_started: "bg-gray-100 text-gray-600",
-  in_progress: "bg-blue-100 text-blue-700",
-  blocked: "bg-red-100 text-red-700",
-  done: "bg-green-100 text-green-700",
-  archived: "bg-gray-100 text-gray-400",
-}
-
-const STATUSES = ["not_started", "in_progress", "blocked", "done", "archived"]
 const PRIORITIES = ["urgent", "high", "normal", "low"]
 
 type FilterTab = "all" | "open" | "done"
@@ -41,8 +33,8 @@ export default async function TodoPage({
     .eq("studio_id", studioId)
     .order("name")
 
-  const projectMap = new Map((projects ?? []).map((p) => [p.id, p]))
-  const projectIds = (projects ?? []).map((p) => p.id)
+  const projectMap = new Map(((projects ?? []) as any[]).map((p: any) => [p.id, p]))
+  const projectIds = ((projects ?? []) as any[]).map((p: any) => p.id)
 
   let query = supabase
     .from("tasks")
@@ -112,7 +104,7 @@ export default async function TodoPage({
               required
               className="w-full border border-gray-200 rounded-sm px-3 py-2 text-sm"
             >
-              {(projects ?? []).map((p) => (
+              {((projects ?? []) as any[]).map((p: any) => (
                 <option key={p.id} value={p.id}>
                   {p.code} — {p.name}
                 </option>
@@ -180,20 +172,20 @@ export default async function TodoPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {tasks?.map((t) => {
-              const p = projectMap.get(t.project_id as string)
-              const updateAction = updateTaskStatusGlobalAction.bind(null, t.id)
-              const deleteAction = deleteTaskGlobalAction.bind(null, t.id)
+            {((tasks ?? []) as any[]).map((t: any) => {
+              const p = projectMap.get(t.project_id as string) as any
+              const updateAction = updateTaskStatusGlobalAction.bind(null, t.id as string)
+              const deleteAction = deleteTaskGlobalAction.bind(null, t.id as string)
               const isOverdue =
                 t.due_date &&
                 new Date(t.due_date as string) < new Date() &&
                 t.status !== "done" &&
                 t.status !== "archived"
               return (
-                <tr key={t.id} className="hover:bg-gray-50 group">
+                <tr key={t.id as string} className="hover:bg-gray-50 group">
                   <td className="px-4 py-3 text-gray-900">
                     <span className={isOverdue ? "text-red-600 font-medium" : ""}>
-                      {t.title}
+                      {t.title as string}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
@@ -201,31 +193,18 @@ export default async function TodoPage({
                   </td>
                   <td className="px-4 py-3">
                     <form action={updateAction}>
-                      <select
-                        name="status"
-                        defaultValue={t.status as string}
-                        onChange="this.form.requestSubmit()"
-                        className={`text-[11px] font-medium px-2 py-0.5 rounded border-0 cursor-pointer ${
-                          STATUS_COLOR[t.status as string] ?? "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s.replace("_", " ")}
-                          </option>
-                        ))}
-                      </select>
+                      <StatusSelect status={t.status as string} />
                     </form>
                   </td>
                   <td className="px-4 py-3 text-gray-500 capitalize text-xs">
-                    {t.priority}
+                    {t.priority as string}
                   </td>
                   <td
                     className={`px-4 py-3 text-xs ${
                       isOverdue ? "text-red-600 font-medium" : "text-gray-500"
                     }`}
                   >
-                    {t.due_date ?? "—"}
+                    {(t.due_date as string | null) ?? "—"}
                   </td>
                   <td className="px-2">
                     <form action={deleteAction}>
@@ -243,10 +222,7 @@ export default async function TodoPage({
             })}
             {(!tasks || tasks.length === 0) && (
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-10 text-center text-gray-400"
-                >
+                <td colSpan={6} className="px-4 py-10 text-center text-gray-400">
                   No tasks{filter !== "all" ? ` in "${filter}" tab` : ""} yet.
                 </td>
               </tr>

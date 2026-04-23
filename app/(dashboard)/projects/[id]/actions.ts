@@ -170,7 +170,7 @@ export async function deleteTimeEntryAction(
   revalidatePath(`/projects/${projectId}`)
 }
 
-// Documents (BlockNote)
+// Documents (BlockNote) — also creates a matching project_modules row
 export async function createDocumentAction(
   projectId: string,
   formData: FormData,
@@ -178,7 +178,7 @@ export async function createDocumentAction(
   const { supabase, user, studioId } = await getCurrentContext()
   if (!user || !studioId) redirect("/login")
   const title = String(formData.get("title") || "Untitled").trim() || "Untitled"
-  const { data, error } = await supabase
+  const { data: doc, error } = await supabase
     .from("documents")
     .insert({
       studio_id: studioId,
@@ -190,8 +190,22 @@ export async function createDocumentAction(
     .select("id")
     .single()
   if (error) throw new Error(error.message)
+  const { data: mod } = await supabase
+    .from("project_modules")
+    .insert({
+      studio_id: studioId,
+      project_id: projectId,
+      kind: "document",
+      name: title,
+      status: "active",
+      document_id: doc.id,
+      created_by: user.id,
+    })
+    .select("id")
+    .single()
   revalidatePath(`/projects/${projectId}`)
-  redirect(`/projects/${projectId}?tab=documents&doc=${data.id}`)
+  if (mod?.id) redirect(`/projects/${projectId}?module=${mod.id}`)
+  redirect(`/projects/${projectId}?tab=documents&doc=${doc.id}`)
 }
 
 export async function updateDocumentContentAction(
@@ -200,11 +214,16 @@ export async function updateDocumentContentAction(
   contentJson: unknown,
 ) {
   const { supabase } = await getCurrentContext()
+  const now = new Date().toISOString()
   const { error } = await supabase
     .from("documents")
-    .update({ content_json: contentJson, updated_at: new Date().toISOString() })
+    .update({ content_json: contentJson, updated_at: now })
     .eq("id", docId)
   if (error) throw new Error(error.message)
+  await supabase
+    .from("project_modules")
+    .update({ updated_at: now })
+    .eq("document_id", docId)
   revalidatePath(`/projects/${projectId}`)
   return { ok: true }
 }
@@ -215,11 +234,16 @@ export async function renameDocumentAction(
   title: string,
 ) {
   const { supabase } = await getCurrentContext()
+  const t = title.trim() || "Untitled"
   const { error } = await supabase
     .from("documents")
-    .update({ title: title.trim() || "Untitled" })
+    .update({ title: t })
     .eq("id", docId)
   if (error) throw new Error(error.message)
+  await supabase
+    .from("project_modules")
+    .update({ name: t, updated_at: new Date().toISOString() })
+    .eq("document_id", docId)
   revalidatePath(`/projects/${projectId}`)
   return { ok: true }
 }
@@ -229,7 +253,185 @@ export async function deleteDocumentAction(
   projectId: string,
 ) {
   const { supabase } = await getCurrentContext()
+  await supabase.from("project_modules").delete().eq("document_id", docId)
   await supabase.from("documents").delete().eq("id", docId)
   revalidatePath(`/projects/${projectId}`)
-  redirect(`/projects/${projectId}?tab=documents`)
+  redirect(`/projects/${projectId}`)
+}
+
+// ===== Project Modules =====
+
+export async function createModuleAction(projectId: string, formData: FormData) {
+  const { supabase, user, studioId } = await getCurrentContext()
+  if (!user || !studioId) redirect("/login")
+  const kind = String(formData.get("kind") || "") as "document" | "schedule"
+  const schedule_kind_raw = String(formData.get("schedule_kind") || "")
+  const name = String(formData.get("name") || "").trim() || "Untitled"
+
+  if (kind === "document") {
+    const { data: doc, error: docErr } = await supabase
+      .from("documents")
+      .insert({
+        studio_id: studioId,
+        project_id: projectId,
+        title: name,
+        content_json: [],
+        created_by: user.id,
+      })
+      .select("id")
+      .single()
+    if (docErr) throw new Error(docErr.message)
+    const { data: mod, error: modErr } = await supabase
+      .from("project_modules")
+      .insert({
+        studio_id: studioId,
+        project_id: projectId,
+        kind: "document",
+        name,
+        status: "active",
+        document_id: doc.id,
+        created_by: user.id,
+      })
+      .select("id")
+      .single()
+    if (modErr) throw new Error(modErr.message)
+    revalidatePath(`/projects/${projectId}`)
+    redirect(`/projects/${projectId}?module=${mod.id}`)
+  }
+
+  if (kind === "schedule") {
+    const schedule_kind = (["ffne", "gantt", "generic"].includes(schedule_kind_raw)
+      ? schedule_kind_raw
+      : "generic") as "ffne" | "gantt" | "generic"
+    const { data: mod, error } = await supabase
+      .from("project_modules")
+      .insert({
+        studio_id: studioId,
+        project_id: projectId,
+        kind: "schedule",
+        schedule_kind,
+        name,
+        status: "active",
+        created_by: user.id,
+      })
+      .select("id")
+      .single()
+    if (error) throw new Error(error.message)
+    revalidatePath(`/projects/${projectId}`)
+    redirect(`/projects/${projectId}?module=${mod.id}`)
+  }
+}
+
+export async function renameModuleAction(
+  moduleId: string,
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase } = await getCurrentContext()
+  const name = String(formData.get("name") || "").trim() || "Untitled"
+  const now = new Date().toISOString()
+  const { data: mod } = await supabase
+    .from("project_modules")
+    .update({ name, updated_at: now })
+    .eq("id", moduleId)
+    .select("kind, document_id")
+    .single()
+  if (mod?.kind === "document" && mod.document_id) {
+    await supabase
+      .from("documents")
+      .update({ title: name })
+      .eq("id", mod.document_id)
+  }
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function updateModuleStatusAction(
+  moduleId: string,
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase } = await getCurrentContext()
+  const status = String(formData.get("status") || "active")
+  await supabase
+    .from("project_modules")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", moduleId)
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function deleteModuleAction(moduleId: string, projectId: string) {
+  const { supabase } = await getCurrentContext()
+  const { data: mod } = await supabase
+    .from("project_modules")
+    .select("kind, document_id")
+    .eq("id", moduleId)
+    .maybeSingle()
+  await supabase.from("project_modules").delete().eq("id", moduleId)
+  if (mod?.kind === "document" && mod.document_id) {
+    await supabase.from("documents").delete().eq("id", mod.document_id)
+  }
+  revalidatePath(`/projects/${projectId}`)
+  redirect(`/projects/${projectId}`)
+}
+
+// ===== Pinboard =====
+
+async function extractPinImage(
+  url: string,
+): Promise<{ image_url: string; source_url: string }> {
+  const trimmed = url.trim()
+  if (/\.(jpg|jpeg|png|webp|gif)(\?|$)/i.test(trimmed)) {
+    return { image_url: trimmed, source_url: trimmed }
+  }
+  try {
+    const res = await fetch(trimmed, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; MirarchBot/1.0; +https://mirarch.app)",
+      },
+      redirect: "follow",
+    })
+    const html = await res.text()
+    const og =
+      html.match(
+        /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+      ) ||
+      html.match(
+        /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+      )
+    if (og && og[1]) return { image_url: og[1], source_url: trimmed }
+  } catch {}
+  return { image_url: trimmed, source_url: trimmed }
+}
+
+export async function addPinboardItemAction(
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase, user, studioId } = await getCurrentContext()
+  if (!user || !studioId) redirect("/login")
+  const rawUrl = String(formData.get("url") || "").trim()
+  const caption = String(formData.get("caption") || "").trim()
+  if (!rawUrl) return
+  const { image_url, source_url } = await extractPinImage(rawUrl)
+  const isPinterest = /pinterest\.com|pinimg\.com/i.test(source_url)
+  await supabase.from("pinboard_items").insert({
+    studio_id: studioId,
+    project_id: projectId,
+    kind: isPinterest ? "pinterest_link" : "image",
+    image_url,
+    source_url,
+    caption: caption || null,
+    created_by: user.id,
+  })
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function deletePinboardItemAction(
+  itemId: string,
+  projectId: string,
+) {
+  const { supabase } = await getCurrentContext()
+  await supabase.from("pinboard_items").delete().eq("id", itemId)
+  revalidatePath(`/projects/${projectId}`)
 }

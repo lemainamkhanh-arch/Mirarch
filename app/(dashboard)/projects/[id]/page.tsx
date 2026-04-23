@@ -2,6 +2,9 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { getCurrentContext } from "@/lib/supabase/current-studio"
 import { TabsNav } from "./tabs-nav"
+import { PinboardSection } from "./pinboard-section"
+import { ActiveModulesTable } from "./active-modules-table"
+import { ModuleView } from "./module-view"
 import { OverviewTab } from "./tab-overview"
 import { TasksTab } from "./tab-tasks"
 import { SpecsTab } from "./tab-specs"
@@ -18,7 +21,6 @@ const statusColor: Record<string, string> = {
   done: "bg-green-100 text-green-700",
   archived: "bg-gray-100 text-gray-500",
 }
-
 const statusLabel: Record<string, string> = {
   proposal: "Proposal",
   in_progress: "In Progress",
@@ -28,16 +30,39 @@ const statusLabel: Record<string, string> = {
   archived: "Archived",
 }
 
+type ProjectModule = {
+  id: string
+  project_id: string
+  kind: "document" | "schedule"
+  schedule_kind: "ffne" | "gantt" | "generic" | null
+  name: string
+  status: "draft" | "active" | "archived"
+  document_id: string | null
+  position: number
+  updated_at: string | null
+}
+
+type PinboardItem = {
+  id: string
+  project_id: string
+  kind: "image" | "pinterest_link"
+  image_url: string | null
+  source_url: string | null
+  caption: string | null
+  position: number
+}
+
 export default async function ProjectDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string; doc?: string }>
+  searchParams: Promise<{ tab?: string; doc?: string; module?: string }>
 }) {
   const { id } = await params
   const sp = await searchParams
-  const tab = sp.tab || "overview"
+  const moduleId = sp.module
+  const tab = sp.tab || (moduleId ? "module" : "overview")
   const activeDocId = sp.doc
   const { supabase, studioId } = await getCurrentContext()
 
@@ -50,7 +75,15 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound()
 
-  const [tasksRes, specsRes, entriesRes, clientRes, documentsRes] = await Promise.all([
+  const [
+    tasksRes,
+    specsRes,
+    entriesRes,
+    clientRes,
+    documentsRes,
+    modulesRes,
+    pinboardRes,
+  ] = await Promise.all([
     supabase
       .from("tasks")
       .select("*")
@@ -78,6 +111,20 @@ export default async function ProjectDetailPage({
       .select("id,title,content_json,updated_at")
       .eq("project_id", id)
       .order("updated_at", { ascending: false }),
+    supabase
+      .from("project_modules")
+      .select(
+        "id,project_id,kind,schedule_kind,name,status,document_id,position,updated_at",
+      )
+      .eq("project_id", id)
+      .neq("status", "archived")
+      .order("position", { ascending: true }),
+    supabase
+      .from("pinboard_items")
+      .select("id,project_id,kind,image_url,source_url,caption,position")
+      .eq("project_id", id)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: false }),
   ])
 
   const tasks = tasksRes.data || []
@@ -92,6 +139,9 @@ export default async function ProjectDetailPage({
     content_json: unknown
     updated_at: string | null
   }>
+  const modules = (modulesRes.data || []) as ProjectModule[]
+  const pinboard = (pinboardRes.data || []) as PinboardItem[]
+  const activeModule = moduleId ? modules.find((m) => m.id === moduleId) : null
 
   const totalTasks = tasks.length
   const doneTasks = tasks.filter((t: { status: string }) => t.status === "done").length
@@ -107,36 +157,33 @@ export default async function ProjectDetailPage({
     ? new Intl.NumberFormat("vi-VN").format(project.budget) +
       " " +
       (project.currency || "VND")
-    : "—"
+    : "\u2014"
+
+  const showOverview = tab === "overview" && !activeModule
+  const showModule = tab === "module" && !!activeModule
+  const showLegacy = !showOverview && !showModule
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-4 text-sm text-gray-500">
-        <Link href="/projects" className="hover:text-gray-900">
-          Projects
-        </Link>
-        <span className="mx-2">/</span>
-        <span className="text-gray-900">{project.code}</span>
+      <div className="mb-4 text-sm text-gray-500 flex items-center justify-between">
+        <div>
+          <Link href="/projects" className="hover:text-gray-900">Projects</Link>
+          <span className="mx-2">/</span>
+          <span className="text-gray-900">{project.name}</span>
+        </div>
       </div>
 
       <div className="flex items-start justify-between gap-6 mb-8">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <span className="text-xs font-mono text-gray-500">{project.code}</span>
-            <span
-              className={
-                "text-xs px-2 py-0.5 rounded-full " +
-                (statusColor[project.status] || "bg-gray-100")
-              }
-            >
+            <span className={"text-xs px-2 py-0.5 rounded-full " + (statusColor[project.status] || "bg-gray-100")}>
               {statusLabel[project.status] || project.status}
             </span>
             <span className="text-xs text-gray-500">{project.priority}</span>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">{project.name}</h1>
-          {project.style && (
-            <p className="text-sm text-gray-500 mt-1">{project.style}</p>
-          )}
+          {project.style && <p className="text-sm text-gray-500 mt-1">{project.style}</p>}
         </div>
         <div className="text-right text-sm">
           <div className="text-2xl font-semibold">{budgetFormatted}</div>
@@ -145,64 +192,45 @@ export default async function ProjectDetailPage({
       </div>
 
       <div className="grid grid-cols-4 gap-4 mb-8">
-        <StatCard
-          label="Progress"
-          value={progressPct + "%"}
-          hint={doneTasks + " / " + totalTasks + " tasks"}
-        />
-        <StatCard
-          label="Timeline"
-          value={project.start_date || "—"}
-          hint={"→ " + (project.end_date || "—")}
-        />
-        <StatCard
-          label="FF&E Items"
-          value={String(specs.length)}
-          hint={installedCount + " installed"}
-        />
-        <StatCard
-          label="Logged Hours"
-          value={(totalMinutes / 60).toFixed(1) + "h"}
-          hint={entries.length + " entries"}
-        />
+        <StatCard label="Progress" value={progressPct + "%"} hint={doneTasks + " / " + totalTasks + " tasks"} />
+        <StatCard label="Timeline" value={project.start_date || "\u2014"} hint={"\u2192 " + (project.end_date || "\u2014")} />
+        <StatCard label="FF&E Items" value={String(specs.length)} hint={installedCount + " installed"} />
+        <StatCard label="Logged Hours" value={(totalMinutes / 60).toFixed(1) + "h"} hint={entries.length + " entries"} />
       </div>
 
-      <TabsNav projectId={id} active={tab} />
+      <TabsNav projectId={id} active={showModule && moduleId ? moduleId : tab} modules={modules} />
 
       <div className="mt-6">
-        {tab === "overview" && (
-          <OverviewTab
-            project={project}
-            client={client}
-            progressPct={progressPct}
-            totalTasks={totalTasks}
-            doneTasks={doneTasks}
-          />
+        {showOverview && (
+          <div className="space-y-10">
+            <PinboardSection projectId={id} items={pinboard} />
+            <ActiveModulesTable projectId={id} modules={modules} />
+            <div className="border-t pt-8">
+              <OverviewTab
+                project={project}
+                client={client}
+                progressPct={progressPct}
+                totalTasks={totalTasks}
+                doneTasks={doneTasks}
+              />
+            </div>
+          </div>
         )}
-        {tab === "tasks" && <TasksTab projectId={id} tasks={tasks} />}
-        {tab === "furniture" && <SpecsTab projectId={id} specs={specs} />}
-        {tab === "time" && <TimeTab projectId={id} entries={entries} />}
-        {tab === "documents" && (
-          <DocumentsTab
-            projectId={id}
-            documents={documents}
-            activeDocId={activeDocId}
-          />
+        {showModule && activeModule && (
+          <ModuleView projectId={id} mod={activeModule} />
+        )}
+        {showLegacy && tab === "tasks" && <TasksTab projectId={id} tasks={tasks} />}
+        {showLegacy && tab === "furniture" && <SpecsTab projectId={id} specs={specs} />}
+        {showLegacy && tab === "time" && <TimeTab projectId={id} entries={entries} />}
+        {showLegacy && tab === "documents" && (
+          <DocumentsTab projectId={id} documents={documents} activeDocId={activeDocId} />
         )}
       </div>
     </div>
   )
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string
-  value: string
-  hint?: string
-}) {
+function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="border rounded-md p-4">
       <div className="text-xs text-gray-500 uppercase tracking-wider">{label}</div>

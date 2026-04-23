@@ -1,26 +1,58 @@
 import Link from "next/link"
+import { NewModuleDialog } from "./new-module-dialog"
 
-const tabs: { key: string; label: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "tasks", label: "Tasks" },
-  { key: "furniture", label: "Furniture" },
-  { key: "time", label: "Time Tracking" },
-  { key: "documents", label: "Documents" },
-]
+type Mod = {
+  id: string
+  name: string
+  kind: "document" | "schedule"
+}
 
-export function TabsNav({ projectId, active }: { projectId: string; active: string }) {
+export function TabsNav({
+  projectId,
+  active,
+  modules,
+}: {
+  projectId: string
+  active: string
+  modules: Mod[]
+}) {
   return (
-    <div className="flex gap-1 border-b">
-      {tabs.map((t) => {
-        const isActive = t.key === active
-        const href = t.key === "overview" ? `/projects/${projectId}` : `/projects/${projectId}?tab=${t.key}`
-        const cls = isActive
-          ? "px-4 py-2 text-sm font-medium border-b-2 border-black -mb-px text-gray-900"
-          : "px-4 py-2 text-sm text-gray-500 hover:text-gray-900"
-        return (
-          <Link key={t.key} href={href} className={cls}>{t.label}</Link>
-        )
-      })}
+    <div className="flex gap-1 border-b overflow-x-auto items-center">
+      <TabLink
+        href={`/projects/${projectId}`}
+        label="Overview"
+        active={active === "overview"}
+      />
+      {modules.map((m) => (
+        <TabLink
+          key={m.id}
+          href={`/projects/${projectId}?module=${m.id}`}
+          label={m.name || "Untitled"}
+          active={active === m.id}
+        />
+      ))}
+      <div className="ml-2">
+        <NewModuleDialog projectId={projectId} compact />
+      </div>
     </div>
+  )
+}
+
+function TabLink({
+  href,
+  label,
+  active,
+}: {
+  href: string
+  label: string
+  active: boolean
+}) {
+  const cls = active
+    ? "px-4 py-2 text-xs font-medium border-b-2 border-black -mb-px text-gray-900 uppercase tracking-wider whitespace-nowrap"
+    : "px-4 py-2 text-xs text-gray-500 hover:text-gray-900 uppercase tracking-wider whitespace-nowrap"
+  return (
+    <Link href={href} className={cls}>
+      {label}
+    </Link>
   )
 }

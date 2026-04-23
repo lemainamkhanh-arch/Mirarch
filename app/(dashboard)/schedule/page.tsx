@@ -57,7 +57,7 @@ export default async function SchedulePage() {
   const todayPct = pct(today.toISOString().slice(0, 10))
 
   // Tasks keyed by project
-  const tasksByProject = new Map<string, typeof tasks>() 
+  const tasksByProject = new Map<string, typeof tasks>()
   for (const t of tasks ?? []) {
     if (!tasksByProject.has(t.project_id as string))
       tasksByProject.set(t.project_id as string, [])

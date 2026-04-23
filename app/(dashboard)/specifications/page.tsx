@@ -6,28 +6,9 @@ import {
   deleteSpecGlobalAction,
   updateSpecStatusGlobalAction,
 } from "./actions"
+import { StatusSelect } from "./status-select"
 
 export const dynamic = "force-dynamic"
-
-const SPEC_STATUSES = [
-  "specified",
-  "quoted",
-  "client_approved",
-  "ordered",
-  "in_transit",
-  "delivered",
-  "installed",
-]
-
-const SPEC_STATUS_COLOR: Record<string, string> = {
-  specified: "bg-gray-100 text-gray-600",
-  quoted: "bg-yellow-100 text-yellow-700",
-  client_approved: "bg-blue-100 text-blue-700",
-  ordered: "bg-purple-100 text-purple-700",
-  in_transit: "bg-orange-100 text-orange-700",
-  delivered: "bg-teal-100 text-teal-700",
-  installed: "bg-green-100 text-green-700",
-}
 
 type Spec = Record<string, unknown>
 
@@ -59,8 +40,8 @@ export default async function SpecificationsPage({
     .eq("studio_id", studioId)
     .order("name")
 
-  const projectMap = new Map((projects ?? []).map((p) => [p.id, p]))
-  const projectIds = (projects ?? []).map((p) => p.id)
+  const projectMap = new Map(((projects ?? []) as any[]).map((p) => [p.id, p]))
+  const projectIds = ((projects ?? []) as any[]).map((p) => p.id)
 
   const { data: specs } = await supabase
     .from("specifications")
@@ -71,13 +52,13 @@ export default async function SpecificationsPage({
     )
     .order("created_at", { ascending: false })
 
-  const totalValue = (specs ?? []).reduce(
-    (s: number, r: Spec) =>
+  const totalValue = ((specs ?? []) as any[]).reduce(
+    (s: number, r: any) =>
       s + Number(r.quantity ?? 1) * Number(r.unit_price ?? 0),
     0,
   )
 
-  const overdueCount = (specs ?? []).filter((s) => isLeadTimeOverdue(s)).length
+  const overdueCount = ((specs ?? []) as any[]).filter((s) => isLeadTimeOverdue(s as Spec)).length
 
   return (
     <div className="p-8">
@@ -126,7 +107,7 @@ export default async function SpecificationsPage({
                 required
                 className="w-full border border-gray-200 rounded-sm px-3 py-2 text-sm"
               >
-                {(projects ?? []).map((p) => (
+                {((projects ?? []) as any[]).map((p: any) => (
                   <option key={p.id} value={p.id}>
                     {p.code}
                   </option>
@@ -172,9 +153,7 @@ export default async function SpecificationsPage({
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">
-                Lead time (ngày)
-              </label>
+              <label className="text-xs text-gray-500 block mb-1">Lead time (ngày)</label>
               <input
                 name="lead_time_days"
                 type="number"
@@ -184,9 +163,7 @@ export default async function SpecificationsPage({
               />
             </div>
             <div>
-              <label className="text-xs text-gray-500 block mb-1">
-                Ngày lắp đặt
-              </label>
+              <label className="text-xs text-gray-500 block mb-1">Ngày lắp đặt</label>
               <input
                 name="install_date"
                 type="date"
@@ -221,16 +198,10 @@ export default async function SpecificationsPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {(specs as Spec[])?.map((s) => {
+            {((specs ?? []) as Spec[]).map((s) => {
               const p = projectMap.get(s.project_id as string)
-              const updateAction = updateSpecStatusGlobalAction.bind(
-                null,
-                s.id as string,
-              )
-              const deleteAction = deleteSpecGlobalAction.bind(
-                null,
-                s.id as string,
-              )
+              const updateAction = updateSpecStatusGlobalAction.bind(null, s.id as string)
+              const deleteAction = deleteSpecGlobalAction.bind(null, s.id as string)
               const qty = Number(s.quantity ?? 1)
               const price = Number(s.unit_price ?? 0)
               const overdue = isLeadTimeOverdue(s)
@@ -240,9 +211,7 @@ export default async function SpecificationsPage({
               return (
                 <tr
                   key={s.id as string}
-                  className={`hover:bg-gray-50 group ${
-                    overdue ? "bg-red-50" : ""
-                  }`}
+                  className={`hover:bg-gray-50 group ${overdue ? "bg-red-50" : ""}`}
                 >
                   <td className="px-4 py-3 text-gray-600 text-xs font-mono">
                     {p?.code ?? "—"}
@@ -260,9 +229,7 @@ export default async function SpecificationsPage({
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600">{qty}</td>
                   <td className="px-4 py-3 text-right text-gray-600">
-                    {price
-                      ? new Intl.NumberFormat("vi-VN").format(price)
-                      : "—"}
+                    {price ? new Intl.NumberFormat("vi-VN").format(price) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-gray-900">
                     {qty * price
@@ -289,20 +256,7 @@ export default async function SpecificationsPage({
                   </td>
                   <td className="px-4 py-3">
                     <form action={updateAction}>
-                      <select
-                        name="status"
-                        defaultValue={s.status as string}
-                        onChange="this.form.requestSubmit()"
-                        className={`text-[11px] font-medium px-2 py-0.5 rounded border-0 cursor-pointer ${
-                          SPEC_STATUS_COLOR[s.status as string] ?? "bg-gray-100"
-                        }`}
-                      >
-                        {SPEC_STATUSES.map((st) => (
-                          <option key={st} value={st}>
-                            {st.replace(/_/g, " ")}
-                          </option>
-                        ))}
-                      </select>
+                      <StatusSelect status={s.status as string} />
                     </form>
                   </td>
                   <td className="px-2">
@@ -320,10 +274,7 @@ export default async function SpecificationsPage({
             })}
             {(!specs || specs.length === 0) && (
               <tr>
-                <td
-                  colSpan={9}
-                  className="px-4 py-10 text-center text-gray-400"
-                >
+                <td colSpan={9} className="px-4 py-10 text-center text-gray-400">
                   Chưa có mục nào.{" "}
                   <a
                     href="/specifications?add=1"

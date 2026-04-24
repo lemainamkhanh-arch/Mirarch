@@ -80,6 +80,8 @@ type Item = {
 
 type Room = { id: string; name: string; position: number }
 
+const UNCLASSIFIED_ROOM: Room = { id: "", name: "Không phân loại", position: 999 }
+
 export async function FurnitureScheduleView({
   projectId,
   moduleId,
@@ -136,6 +138,7 @@ export async function FurnitureScheduleView({
   }
 
   const currency = itemList[0]?.currency ?? "VND"
+  const unclassified = grouped.get("__none__") ?? []
 
   return (
     <div className="space-y-6">
@@ -168,7 +171,7 @@ export async function FurnitureScheduleView({
         </button>
       </form>
 
-      {roomList.length === 0 && (grouped.get("__none__")?.length ?? 0) === 0 && (
+      {roomList.length === 0 && unclassified.length === 0 && (
         <div className="border border-dashed border-gray-200 rounded-sm p-10 text-center text-sm text-gray-500">
           Chưa có phòng nào. Tạo phòng đầu tiên để bắt đầu liệt kê furniture.
         </div>
@@ -185,10 +188,10 @@ export async function FurnitureScheduleView({
         />
       ))}
 
-      {(grouped.get("__none__")?.length ?? 0) > 0 && (
+      {unclassified.length > 0 && (
         <RoomBlock
-          room= id: "", name: "Không phân loại", position: 999 
-          items={grouped.get("__none__") ?? []}
+          room={UNCLASSIFIED_ROOM}
+          items={unclassified}
           projectId={projectId}
           moduleId={moduleId}
           today={today}

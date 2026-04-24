@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ArrowLeft, Construction } from "lucide-react"
 import { getCurrentContext } from "@/lib/supabase/current-studio"
 import { DocumentEditorWrapper } from "./document-editor-wrapper"
+import { FurnitureScheduleView } from "./furniture-schedule-view"
 import { renameModuleAction, deleteModuleAction } from "./actions"
 
 type Mod = {
@@ -46,13 +47,11 @@ export async function ModuleView({
         </div>
       )
     }
+  } else if (mod.kind === "schedule" && mod.schedule_kind === "ffne") {
+    inner = <FurnitureScheduleView projectId={projectId} moduleId={mod.id} />
   } else if (mod.kind === "schedule") {
     const kindLabel =
-      mod.schedule_kind === "ffne"
-        ? "FF&E Schedule"
-        : mod.schedule_kind === "gantt"
-        ? "Gantt / Timeline"
-        : "Generic Database"
+      mod.schedule_kind === "gantt" ? "Gantt / Timeline" : "Generic Database"
     inner = (
       <div className="border-2 border-dashed border-gray-200 rounded-sm p-12 text-center">
         <Construction className="w-10 h-10 mx-auto text-gray-300 mb-3" />

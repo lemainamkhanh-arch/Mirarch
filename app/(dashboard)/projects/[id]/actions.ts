@@ -170,7 +170,6 @@ export async function deleteTimeEntryAction(
   revalidatePath(`/projects/${projectId}`)
 }
 
-// Documents (BlockNote) — also creates a matching project_modules row
 export async function createDocumentAction(
   projectId: string,
   formData: FormData,
@@ -433,5 +432,121 @@ export async function deletePinboardItemAction(
 ) {
   const { supabase } = await getCurrentContext()
   await supabase.from("pinboard_items").delete().eq("id", itemId)
+  revalidatePath(`/projects/${projectId}`)
+}
+
+// ===== Furniture Schedule (FF&E) =====
+
+export async function addFurnitureRoomAction(
+  moduleId: string,
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase, user, studioId } = await getCurrentContext()
+  if (!user || !studioId) redirect("/login")
+  const name = String(formData.get("name") || "").trim()
+  if (!name) return
+  const { data: last } = await supabase
+    .from("furniture_rooms")
+    .select("position")
+    .eq("module_id", moduleId)
+    .order("position", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const position = (last?.position ?? -1) + 1
+  await supabase.from("furniture_rooms").insert({
+    studio_id: studioId,
+    project_id: projectId,
+    module_id: moduleId,
+    name,
+    position,
+  })
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function deleteFurnitureRoomAction(
+  roomId: string,
+  projectId: string,
+) {
+  const { supabase } = await getCurrentContext()
+  await supabase.from("furniture_rooms").delete().eq("id", roomId)
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function addFurnitureItemAction(
+  moduleId: string,
+  projectId: string,
+  roomId: string | null,
+  formData: FormData,
+) {
+  const { supabase, user, studioId } = await getCurrentContext()
+  if (!user || !studioId) redirect("/login")
+  const name = String(formData.get("name") || "").trim()
+  if (!name) return
+  const supplier = String(formData.get("supplier") || "").trim()
+  const quantity = Number(formData.get("quantity") || 1)
+  const unit_price_raw = formData.get("unit_price")
+  const lead_time_raw = formData.get("lead_time_days")
+  const expected_raw = formData.get("expected_delivery")
+  await supabase.from("furniture_items").insert({
+    studio_id: studioId,
+    project_id: projectId,
+    module_id: moduleId,
+    room_id: roomId,
+    name,
+    supplier: supplier || null,
+    quantity: quantity || 1,
+    unit_price: unit_price_raw ? Number(unit_price_raw) : null,
+    lead_time_days: lead_time_raw ? Number(lead_time_raw) : null,
+    expected_delivery: expected_raw ? String(expected_raw) : null,
+    status: "proposed",
+    client_approval: "pending",
+    created_by: user.id,
+  })
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function updateFurnitureItemStatusAction(
+  itemId: string,
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase } = await getCurrentContext()
+  const status = String(formData.get("status") || "proposed")
+  const today = new Date().toISOString().slice(0, 10)
+  const patch: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  }
+  if (status === "ordered") patch.order_date = today
+  if (status === "delivered" || status === "installed")
+    patch.actual_delivery = today
+  await supabase.from("furniture_items").update(patch).eq("id", itemId)
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function updateFurnitureClientApprovalAction(
+  itemId: string,
+  projectId: string,
+  formData: FormData,
+) {
+  const { supabase } = await getCurrentContext()
+  const client_approval = String(formData.get("client_approval") || "pending")
+  await supabase
+    .from("furniture_items")
+    .update({
+      client_approval,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", itemId)
+  revalidatePath(`/projects/${projectId}`)
+}
+
+export async function deleteFurnitureItemAction(
+  itemId: string,
+  projectId: string,
+) {
+  const { supabase } = await getCurrentContext()
+  await supabase.from("furniture_items").delete().eq("id", itemId)
   revalidatePath(`/projects/${projectId}`)
 }
